@@ -1,0 +1,18 @@
+{
+	"project": {
+		"name": "SimpleDrivePid",
+		"slot": 1,
+		"description": "",
+		"platform": "IQ2",
+		"creationDate": "Fri, 14 Nov 2025 10:14:47 GMT",
+		"language": "cpp",
+		"sdkVersion": "IQ2_20250520_15_00_00",
+		"cpp": {
+			"includePath": []
+		}
+	},
+	"extension": {
+		"version": "0.7.2025041600",
+		"json": 1
+	}
+}
