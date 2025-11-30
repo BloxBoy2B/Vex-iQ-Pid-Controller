@@ -51,7 +51,10 @@ void initializeRandomSeed(){
 void vexcodeInit() {
 
   // Initializing random seed.
+  BrainInertial.calibrate();
+  waitUntil(!BrainInertial.isCalibrating());
   initializeRandomSeed(); 
+  
 }
 
 #pragma endregion VEXcode Generated Robot Configuration
@@ -63,7 +66,12 @@ void vexcodeInit() {
 using namespace vex;
 
 float angularError;
-float targetheading;
+float targetHeading;
+float angularIntergral = 0;
+float targetDistance;
+float DistanceIntergral;
+float angularPreviousError = 0;
+float linearPreviousError = 0;
 
 // "when started" hat block
 int whenStarted1() {
@@ -77,9 +85,7 @@ void turnToHeadingPID(int targetHeading) {
     float error = 0;
     float speed = 0;
     float robotHeading = 0;
-    float integral = 0;
     float derivative = 0;
-    float previous_error = 0;
     double kp = 0.5;
     double ki = 0.2;
     double kd = 0.3;
@@ -94,11 +100,11 @@ void turnToHeadingPID(int targetHeading) {
         if (error > 180) error -= 360; // Wrap error for easier turning
         if (error < -180) error += 360;
 
-        integral += error;
-        derivative = error - previous_error;
-        previous_error = error;
+        angularIntergral += error;
+        derivative = error - angularPreviousError;
+        angularPreviousError = error;
 
-        speed = (kp * error) + (ki * integral) + (kd * derivative);
+        speed = (kp * error) + (ki * angularIntergral) + (kd * derivative);
 
         // Constrain speed (optional, prevents crazy motor values)
         if (speed > 50) speed = 50;
@@ -119,3 +125,61 @@ void turnToHeadingPID(int targetHeading) {
         this_thread::sleep_for(20);
     }
 }
+
+void driveToDistancePID(int targetDistance) {
+    float error = 0;
+    float speed = 0;
+    float derivative = 0;
+    double kp = 0.5;
+    double ki = 0.01;
+    double kd = 0.3;
+
+    // Reset motor positions to track distance
+    LeftMotor.setPosition(0, degrees);
+    RightMotor.setPosition(0, degrees);
+
+    // You can adjust this threshold for how close is 'good enough'
+    int threshold = 10;
+
+    while (true) {
+        // Get average position of both motors (in degrees)
+        float currentDistance = (LeftMotor.position(degrees) + RightMotor.position(degrees)) / 2.0;
+
+        error = targetDistance - currentDistance;
+
+        DistanceIntergral += error;
+        derivative = error - linearPreviousError;
+        linearPreviousError = error;
+
+        speed = (kp * error) + (ki * DistanceIntergral) + (kd * derivative);
+
+        // Constrain speed (optional, prevents crazy motor values)
+        if (speed > 50) speed = 50;
+        if (speed < -50) speed = -50;
+
+        // Spin both motors forward to drive straight
+        LeftMotor.spin(forward, speed, percent);
+        RightMotor.spin(forward, speed, percent);
+
+        // Break loop if distance is close enough
+        if (fabs(error) <= threshold) {
+            LeftMotor.stop();
+            RightMotor.stop();
+            break;
+        }
+
+        // Short delay
+        this_thread::sleep_for(20);
+    }
+}
+
+int main() {
+    // Initializing Robot Configuration. DO NOT REMOVE!
+    vexcodeInit();
+
+    driveToDistancePID(300);
+    turnToHeadingPID(90);
+    
+    return 0;
+}
+
