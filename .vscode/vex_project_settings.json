@@ -1,6 +1,6 @@
 {
 	"project": {
-		"name": "SimpleDrivePid",
+		"name": "Vex IQ PID Drive Controller",
 		"slot": 1,
 		"description": "",
 		"platform": "IQ2",
