@@ -1,30 +1,35 @@
 #include "vex.h"
 #include "driveToDistance.h"
+
 using namespace vex;
 
 // Constructor
-driveToDistance::driveToDistance(float distanceProportional, float distanceIntegral, float distanceDerivative, int distanceErrorThreshold, float headingProportional, float headingIntegral, float headingDerivative, int headingErrorThreshold)
+driveToDistance::driveToDistance(float distanceProportional, float distanceIntegral,
+                                float distanceDerivative, int distanceErrorThreshold,
+                                float headingProportional, float headingIntegral,
+                                float headingDerivative, int headingErrorThreshold)
 {
+    // Distance PID parameters
     kp = distanceProportional;
     ki = distanceIntegral;
     kd = distanceDerivative;
-    headingErrorThreshold = headingToHoldThreshold;
+    threshold = distanceErrorThreshold;
 
+    // Heading PID parameters
     kpHeading = headingProportional;
     kiHeading = headingIntegral;
     kdHeading = headingDerivative;
-    
-    
- 
+    headingToHoldThreshold = headingErrorThreshold;
 
-    threshold = distanceErrorThreshold;
-
-
-   
+    // Initialize state variables
+    distanceIntegral = 0;
+    distancePreviousError = 0;
+    headingIntegral = 0;
+    headingPreviousError = 0;
 }
 
 // Destructor
-driveToDistance::~TurnToHeadingPID()
+driveToDistance::~driveToDistance()
 {
 }
 
@@ -33,104 +38,97 @@ void driveToDistance::execute(double targetDistance, double headingToHold, doubl
 {
     // Reset integral and previous error
     distanceIntegral = 0;
+    distancePreviousError = 0;
     headingIntegral = 0;
-    
+    headingPreviousError = 0;
 
-  float error = 0;
-  float speed = 0;
-  float derivative = 0;
-  double kp = 0.5;
-  double ki = 0.01;
-  double kd = 0.3;
+    timer myTimer;
 
-  float headingError = 0;
-  float headingIntegral = 0;
-  float headingPreviousError = 0;
-  float headingDerivative = 0;
-  float headingCorrection = 0;
+    // Reset motor positions
+    LeftMotor.setPosition(0, degrees);
+    RightMotor.setPosition(0, degrees);
 
-  double kpHeading = 0.3;
-  double kiHeading = 0.05;
-  double kdHeading = 0.1;
-
-  double headingToHoldThreshold = 2;
-
-  timer myTimer;
-
-  LeftMotor.setPosition(0, degrees);
-  RightMotor.setPosition(0, degrees);
-
-  // You can adjust this threshold for how close is 'good enough'
-  int threshold = 10;
-
-  while (true)
-  {
-    // Get average position of both motors (in degrees)
-    float currentDistance = (LeftMotor.position(degrees) + RightMotor.position(degrees)) / 2.0;
-
-    error = targetDistance - currentDistance;
-
-    DistanceIntegral += error;
-
-    if (DistanceIntegral > 400)
-      DistanceIntegral = 400;
-    if (DistanceIntegral < -400)
-      DistanceIntegral = -400;
-
-    if (fabs(error) < 5)
-      DistanceIntegral = 0;
-
-    derivative = error - linearPreviousError;
-    linearPreviousError = error;
-
-    speed = (kp * error) + (ki * DistanceIntegral) + (kd * derivative);
-
-    if (speed > 50)
-      speed = 50;
-    if (speed < -50)
-      speed = -50;
-
-    float currentHeading = BrainInertial.heading(degrees);
-    headingError = headingToHold - currentHeading;
-
-    if (headingError > 180)
-      headingError -= 360;
-    if (headingError < -180)
-      headingError += 360;
-
-    headingIntegral += headingError;
-    if (headingIntegral > 100)
-      headingIntegral = 100;
-    if (headingIntegral < -100)
-      headingIntegral = -100;
-    if (fabs(headingError) < 2)
-      headingIntegral = 0;
-
-    headingDerivative = headingError - headingPreviousError;
-    headingPreviousError = headingError;
-
-    headingCorrection = (kpHeading * headingError) + (kiHeading * headingIntegral) + (kdHeading * headingDerivative);
-
-    if (headingCorrection > 20)
-      headingCorrection = 20;
-    if (headingCorrection < -20)
-      headingCorrection = -20;
-
-    float leftSpeed = speed + headingCorrection;
-    float rightSpeed = speed - headingCorrection;
-
-    LeftMotor.spin(forward, leftSpeed, percent);
-    RightMotor.spin(forward, rightSpeed, percent);
-
-    if ((fabs(error) <= threshold && fabs(headingError) <= headingToHoldThreshold) || myTimer.time(msec) >= timeOut)
+    while (true)
     {
-      LeftMotor.stop(brake);
-      RightMotor.stop(brake);
-      break;
-    }
-    
+        // Get average position of both motors (in degrees)
+        float currentDistance = (LeftMotor.position(degrees) + RightMotor.position(degrees)) / 2.0;
 
-    // Short delay
-    this_thread::sleep_for(20);
-  }
+        // Distance PID calculation
+        float distanceError = targetDistance - currentDistance;
+
+        distanceIntegral += distanceError;
+
+        // Anti-windup for distance integral
+        if (distanceIntegral > 400)
+            distanceIntegral = 400;
+        if (distanceIntegral < -400)
+            distanceIntegral = -400;
+
+        // Reset integral when close to target
+        if (fabs(distanceError) < 5)
+            distanceIntegral = 0;
+
+        float distanceDerivative = distanceError - distancePreviousError;
+        distancePreviousError = distanceError;
+
+        float speed = (kp * distanceError) + (ki * distanceIntegral) + (kd * distanceDerivative);
+
+        // Constrain speed
+        if (speed > 50)
+            speed = 50;
+        if (speed < -50)
+            speed = -50;
+
+        // Heading PID calculation
+        float currentHeading = BrainInertial.heading(degrees);
+        float headingError = headingToHold - currentHeading;
+
+        // Normalize heading error to -180 to 180 range
+        if (headingError > 180)
+            headingError -= 360;
+        if (headingError < -180)
+            headingError += 360;
+
+        headingIntegral += headingError;
+
+        // Anti-windup for heading integral
+        if (headingIntegral > 100)
+            headingIntegral = 100;
+        if (headingIntegral < -100)
+            headingIntegral = -100;
+
+        // Reset integral when close to target heading
+        if (fabs(headingError) < 2)
+            headingIntegral = 0;
+
+        float headingDerivative = headingError - headingPreviousError;
+        headingPreviousError = headingError;
+
+        float headingCorrection = (kpHeading * headingError) + (kiHeading * headingIntegral) + (kdHeading * headingDerivative);
+
+        // Constrain heading correction
+        if (headingCorrection > 20)
+            headingCorrection = 20;
+        if (headingCorrection < -20)
+            headingCorrection = -20;
+
+        // Apply differential drive
+        float leftSpeed = speed + headingCorrection;
+        float rightSpeed = speed - headingCorrection;
+
+        LeftMotor.spin(forward, leftSpeed, percent);
+        RightMotor.spin(forward, rightSpeed, percent);
+
+        // Check if we're done (both distance and heading are within thresholds, or timeout)
+        if ((fabs(distanceError) <= threshold && fabs(headingError) <= headingToHoldThreshold) ||
+            myTimer.time(msec) >= timeOut)
+        {
+            LeftMotor.stop(brake);
+            RightMotor.stop(brake);
+            break;
+        }
+
+        // Short delay
+        this_thread::sleep_for(20);
+    }
 }
