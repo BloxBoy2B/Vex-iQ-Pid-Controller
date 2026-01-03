@@ -1,32 +1,5 @@
 # VEX IQ PID Controller
 
-A Vex IQ PID Controller that provides accurate distance and turns.
-
-## What it does
-
-Makes the robot turn and drive straight more accurately than just setting motor speeds. Uses PID math to calculate how fast the motors should go.
-
-## How to use it
-
-Put this in your main function:
-
-```cpp
-int main() {
-    vexcodeInit();
-    
-    driveToDistancePID(300, 0);
-    turnToHeadingPID(90);
-    driveToDistancePID(400, 90);
-    
-    return 0;
-}
-```
-
-**turnToHeadingPID(angle)** - turns the robot to face an angle
-- example: turnToHeadingPID(180) turns to face backwards
-
-**driveToDistancePID(distance, heading)** - drives forward a certain distance while staying straight
-- example: driveToDistancePID(500, 90) drives forward 500 degrees while facing 90°
 
 ## Advanced driveToDistance class (with 4 distance sensors)
 
